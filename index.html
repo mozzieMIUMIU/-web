@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style type="text/css">
+        *{margin: 0;padding: 0;}
+        li{list-style: none}
+        .load{
+            display: none;
+        }
+        body,html,#container{
+            height: 100%;
+            margin: 0px;
+        }
+        .gaodeMenu{
+            position: fixed;
+            top:10px;
+            right: 40px;
+            background: #fff;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        #container{
+            width: 100%;height: 100%;
+        }
+        .nav-menu{
+            overflow: hidden;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            padding: 5px 10px;
+        }
+        .nav-menu>div{
+            float: left;
+        }
+        .nav-menu .user-type{
+            margin: 0 10px;
+            width: 90px;
+            text-align: center;
+        }
+        .city-menu{
+            position: absolute;
+            top:40px;
+            right: 13px;
+            background: #fff;
+            display: none;
+        }
+        .city-menu .title{
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .city-menu .title>div{
+            float: left;
+            margin: 0 10px;
+        }
+        .city-menu .city-box{
+            width: 300px;
+            border:1px solid #ccc;
+            padding: 5px;
+        }
+        .city-menu .city-box ul{
+            overflow: hidden;
+        }
+        .city-menu .city-box ul li{
+            float: left;
+            width: 75px;
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .city-menu .city-box ul li.active{
+            color: #ea5b24;
+        }
+        .city-menu .city-box ul li:hover{
+            color: #ea5b24;
+        }
+        .city-menu .city{
+            display: none;
+        }
+        .pointAnimate:after{
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 20px;
+            height: 20px;
+            opacity: 1;
+            margin-left: -10px;
+            margin-top: -10px;
+            background: #ea5b24;
+            border-radius: 50%;
+            -webkit-transform:scale(0);
+            -moz-transform:scale(0);
+            transform:scale(0);
+        }
+        .pointAnimate:before{
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 20px;
+            height: 20px;
+            opacity: 1;
+            margin-left: -10px;
+            margin-top: -10px;
+            background: #ea5b24;
+            border-radius: 50%;
+            -webkit-transform:scale(0);
+            -moz-transform:scale(0);
+            transform:scale(0);
+        }
+        .pointAnimate:after{
+            -webkit-animation:animations 1.5s ease-out infinite;
+            -moz-animation:animations 1.5s ease-out infinite;
+            animation:animations 1.5s ease-out infinite;
+        }
+        .pointAnimate:before{
+            -webkit-animation:animations 1.5s ease-out .5s infinite;
+            -moz-animation:animations 1.5s ease-out .5s infinite;
+            animation:animations 1.5s ease-out .5s infinite;
+        }
+        @keyframes  animations{
+            0%{transform:scale(0);opacity:1;}
+            100%{transform:scale(3);opacity:0;}
+        }
+    </style>
+</head>
+<body>
+
+<div class="gaodeMenu">
+    <div class="nav-menu">
+        <div id="atCity">成都市</div>
+    </div>
+    <div class="city-menu">
+        <div class="title">
+            <div class="province" id="province">请选择</div>
+            <div class="city" id="city">请选择</div>
+
+        </div>
+        <div id="city-box" class="city-box">
+            <ul>
+                <!--<li class="cityName">陕西省</li>-->
+                <!--<li class="cityName">北京市</li>-->
+            </ul>
+        </div>
+    </div>
+</div>
+<!--map-->
+<div id="container"></div>
+</body>
+<script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
+<script type="text/javascript" src='http://webapi.amap.com/maps?v=1.4.2&key=6129be30eb8dc5151bcd237f024ce902&plugin=AMap.CitySearch'></script>
+<script type="text/javascript" src="http://cache.amap.com/lbs/static/addToolbar.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+    //地图
+    var map,
+        //延迟执行自定义变量
+        timer = null,
+        //坐标点
+        markers = [],
+        //区域覆盖点
+        polygons= [],
+        //当前城市
+        atCity = $('#atCity'),
+        //切换城市盒子
+        cityBox = $('#city-box'),
+        //title省份
+        oProvince = $('#province'),
+        //title城市
+        oCity = $('#city');
+
+    /*初始化*/
+    map = new AMap.Map('container', {
+        resizeEnable: true,
+        zoom:11,
+        center: [116.397428, 39.90923]
+    });
+
+    /*注册map移动事件*/
+    map.on('complete', function() {
+        console.log("地图图块加载完毕！当前地图中心点为：" + map.getCenter());
+        timer =setTimeout(function () {
+            clearTimeout(timer);
+            map.on('moveend', getCity);
+        },2000)
+    });
+
+
+    /*地图移动事件*/
+    function getCity(data) {
+        //当前等级
+        var zoomIndex =  map.getZoom();
+        //储存当前城市
+        var mapMoveendCityName = atCity.text();
+
+        map.getCity(function(data) {
+            timer =setTimeout(function () {
+                clearTimeout(timer);
+                if (data['province'] && typeof data['province'] === 'string') {
+                    if(zoomIndex === 6 || zoomIndex === 7){
+                        //省份
+                        atCity.text( data['province']);
+                        mapMoveEndFn();
+                    }else if(zoomIndex > 5){
+                        //城市
+                        //如果是直辖市没有city，选择省份
+                        atCity.text( data['city'] || data['province']);
+                        mapMoveEndFn();
+                    }else{
+                        //中国
+                        atCity.text('中国');
+                        mapMoveEndFn();
+                    }
+                    //地图移动重新绘制行政区域
+                    function mapMoveEndFn() {
+                        //储存地图移动后的当前城市
+                        var mapMoveendCityNameNew = atCity.text();
+                        if(mapMoveendCityName != mapMoveendCityNameNew){
+                            //清除覆盖物
+                            map.clearMap();
+                            //加载行政区划插件
+                            cityArea(mapMoveendCityNameNew);
+                            //坐标点
+                            marker(mapMoveendCityNameNew);
+                        }
+                    }
+                }
+            },200)
+        });
+    }
+
+    /*获取用户所在城市信息*/
+    showCityInfo();
+    function showCityInfo() {
+        //实例化城市查询类
+        var citysearch = new AMap.CitySearch();
+        //自动获取用户IP，返回当前城市
+        citysearch.getLocalCity(function(status, result) {
+            if (status === 'complete' && result.info === 'OK') {
+                if (result && result.city && result.bounds) {
+
+                    var cityinfo = result.city;
+                    var citybounds = result.bounds;
+                    atCity.text(cityinfo);
+                    //地图显示当前城市
+                    map.setBounds(citybounds);
+                    //加载行政区划插件
+                    cityArea(cityinfo,'fn');
+                    //坐标点
+                    marker(cityinfo);
+                    //加载行政区-中国菜单导航
+                    cityBoxFn('中国',true);
+                    //事件
+                    eventThings();
+                }
+            } else {
+                atCity.text(result.info);
+            }
+        });
+    }
+    //事件
+    function eventThings() {
+        //移入移出
+        $("#atCity").mouseenter(function(){
+            $('.city-menu').show();
+        });
+        $(".city-menu").mouseleave(function(){
+            $('.city-menu').hide();
+        });
+        oProvince.on("click",function () {
+            var cityList = localStorage.getItem("cityList");
+            if(cityList!=''){
+                cityBox.html(cityList);
+                var oProvinceTxt = oProvince.text();
+                $("#city-box ul li:contains('"+oProvinceTxt+"')").css("color","#ea5b24");
+                oCity.text('请选择')
+
+                //城市切换事件
+                $('.cityName').on("click", function(){
+                    var name = $(this).text();
+                    atCity.text(name);
+                    map.clearMap();
+                    //加载行政区划插件
+                    cityArea(name,'fn');
+                    cityBoxFn(name,true);
+                    oProvince.text(name);
+
+                })
+            }
+
+        });
+    }
+
+    function cityBoxFn(cityName,isBreak) {
+        console.log(cityName)
+        if(isBreak){
+            AMap.service('AMap.DistrictSearch', function () {
+                var opts = {
+                    subdistrict: 1,   //返回下一级行政区
+                    extensions: 'all',  //返回行政区边界坐标组等具体信息
+                    level: 'city'  //查询行政级别为 市
+                };
+                //实例化DistrictSearch
+                district = new AMap.DistrictSearch(opts);
+                district.setLevel('district');
+                //行政区查询
+                district.search(cityName, function (status, result) {
+                    if(status=='complete'){
+                        cityMenuNav(result)
+                    }
+                });
+            });
+        }
+    }
+    // 导航菜单
+    function cityMenuNav(result) {
+        var item = result.districtList[0].districtList;
+        var level = result.districtList[0].level;
+        if(item){
+            var html='<ul>';
+            for(var i=0;i<item.length;i++){
+                html +=`<li class="cityName" data-code="${item[i].adcode}"  data-center="${item[i].center}">${item[i].name}</li>`
+            }
+            html+='</ul>';
+
+            //储存下来各省份，api的方法调用特别慢，暂时没有查找到其它方法
+            if(level==='country')localStorage.setItem("cityList",html)
+            cityBox.html(html);
+
+            console.log(result.districtList[0].districtList)
+            $('.cityName').on("click", function(){
+                //储存当前省份城市名
+                var mapCheckedCityName = atCity.text();
+                //城市项选择
+                oCity.css("display","block");
+                //移除所有class当前添加
+                $('.cityName').removeClass('active');
+                $(this).addClass('active');
+                //当前点击选择的城市名
+                var atName = $(this).text();
+                atCity.text(atName);
+
+                console.log(name+'****'+mapCheckedCityName)
+                //如果城市名一样，避免重复加载
+                if(mapCheckedCityName != atName){
+                    map.clearMap();
+                    //加载行政区划插件
+                    cityArea(atName,'fn');
+                    //坐标点
+                    marker(atName);
+                }
+
+                var mapadcode = $(this).attr('data-code');
+                var mapCenter = $(this).attr('data-center');
+                console.log('城市code：'+mapadcode+'中心点：'+mapCenter);
+
+                if(level==='province'){
+                    oCity.text(atName);
+                    cityBoxFn(atName,false);
+                }else{
+                    oProvince.text(atName);
+                    cityBoxFn(atName,true);
+                }
+            })
+        }
+    }
+
+    /*加载行政区划插件*/
+    function cityArea(cityName,fn) {
+        AMap.service('AMap.DistrictSearch', function () {
+            var opts = {
+                subdistrict: 1,   //返回下一级行政区
+                extensions: 'all',  //返回行政区边界坐标组等具体信息
+                level: 'city'  //查询行政级别为 市
+            };
+            //实例化DistrictSearch
+            district = new AMap.DistrictSearch(opts);
+            district.setLevel('district');
+            //行政区查询
+            district.search(cityName, function (status, result) {
+                if(status=='complete'){
+                    getData(result.districtList[0],fn);
+                }
+            });
+        });
+    }
+
+    /*行政区域描绘*/
+    function getData(data,fn){
+        console.log(data)
+        var bounds = data.boundaries;
+        if (bounds) {
+            for (var i = 0, l = bounds.length; i < l; i++) {
+                var polygon = new AMap.Polygon({
+                    map: map,
+                    strokeWeight: 1,
+                    strokeColor: '#ccc',
+                    fillColor: '#FFDEAD',
+                    fillOpacity: 0.5,
+                    path: bounds[i]
+                });
+                polygons.push(polygon);
+            }
+            //当初始化的时候自适应
+            if(fn==='fn'){
+                //切换城市的时候避免中心坐标点和选中不一
+                map.off('moveend', getCity);
+                map.setFitView();//地图自适应
+                timer =setTimeout(function () {
+                    clearTimeout(timer);
+                    map.on('moveend', getCity);
+                },2000)
+            }
+        }
+    }
+
+    /*坐标点*/
+    function marker(cityName) {
+        axios.get('https://easy-mock.com/mock/5982ea3ca1d30433d852575c/mozzie/url',{
+            params:{
+                city:cityName,
+            }
+        })
+        .then((res)=>{
+            //console.log(res.data.data.city)
+            if(res.data.data.city.length !=0){
+                var provinces = res.data.data.city;
+                for (var i = 0; i < provinces.length; i += 1) {
+                    var marker;
+                    if (provinces[i].type === 0) {
+                        var icon = new AMap.Icon({
+                            image: './img/ico-gray.png',
+                            size: new AMap.Size(48, 48)
+                        });
+                        marker = new AMap.Marker({
+                            icon: icon,
+                            position: provinces[i].center.split(','),
+                            offset: new AMap.Pixel(-24,-24),
+                            zIndex: 101,
+                            //自定义获取的数据
+                            testKB:provinces[i].kb,
+                            map: map
+                        });
+                    } else {
+                        var icon = new AMap.Icon({
+                            image: './img/ico-gray.png',
+                            size: new AMap.Size(48, 48)
+                        });
+                        marker = new AMap.Marker({
+                            icon: icon,
+                            position: provinces[i].center.split(','),
+                            testKB: provinces[i].kb,
+                            map: map
+                        });
+
+                    }
+                    markers.push(marker);
+                    marker.on('click', function(e) {
+                        $('.amap-icon').removeClass('pointAnimate');
+                        var amapIconOne = e.target.vh.contentDom;
+                        amapIconOne.className="amap-icon pointAnimate";
+                        console.log(e.target.vh.contentDom)
+                        console.log(e.target)
+                    });
+                }
+            }
+        })
+        .catch((err)=>{
+
+        })
+    }
+</script>
+</html>
